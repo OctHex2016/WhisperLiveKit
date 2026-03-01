@@ -196,6 +196,8 @@ class MLXWhisper(ASRBase):
             initial_prompt=init_prompt,
             word_timestamps=True,
             condition_on_previous_text=False,
+            no_speech_threshold=0.6,
+            compression_ratio_threshold=2.4,
             path_or_hf_repo=self.model_size_or_path,
         )
         return segments.get("segments", [])
@@ -203,7 +205,9 @@ class MLXWhisper(ASRBase):
     def ts_words(self, segments) -> List[ASRToken]:
         tokens = []
         for segment in segments:
-            if segment.get("no_speech_prob", 0) > 0.9:
+            if segment.get("no_speech_prob", 0) > 0.6:
+                continue
+            if segment.get("compression_ratio", 0) > 2.4:
                 continue
             for word in segment.get("words", []):
                 token = ASRToken(word["start"], word["end"], word["word"])
