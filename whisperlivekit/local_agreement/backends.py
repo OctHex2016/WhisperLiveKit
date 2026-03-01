@@ -195,7 +195,7 @@ class MLXWhisper(ASRBase):
             language=self.original_language,
             initial_prompt=init_prompt,
             word_timestamps=True,
-            condition_on_previous_text=True,
+            condition_on_previous_text=False,
             path_or_hf_repo=self.model_size_or_path,
         )
         return segments.get("segments", [])
