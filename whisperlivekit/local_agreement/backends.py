@@ -288,9 +288,44 @@ class Qwen3ASR(ASRBase):
             (0xAC00 <= cp <= 0xD7AF) or (0xFF00 <= cp <= 0xFFEF)
         )
 
+    @staticmethod
+    def _attach_punctuation(segments, full_text):
+        """Re-attach punctuation from the full text to word segments.
+        
+        Qwen3-ASR returns punctuation in result.text but strips it from
+        word-level timestamp segments. Walk through full_text matching
+        each segment word, then capture any trailing punctuation.
+        """
+        if not segments or not full_text:
+            return segments
+        pos = 0
+        result = []
+        for seg in segments:
+            word = seg.get("text", "").strip()
+            if not word:
+                result.append(seg)
+                continue
+            # Find this word in full_text starting from pos
+            idx = full_text.find(word, pos)
+            if idx == -1:
+                result.append(seg)
+                continue
+            # Advance past the word
+            after = idx + len(word)
+            # Collect trailing punctuation (CJK and ASCII)
+            punct = ""
+            while after < len(full_text) and full_text[after] in "，。！？、；：""''…—·,.!?;:\"'-()（）【】":
+                punct += full_text[after]
+                after += 1
+            pos = after
+            new_seg = dict(seg)
+            new_seg["text"] = word + punct
+            result.append(new_seg)
+        return result
+
     def ts_words(self, result) -> List[ASRToken]:
         tokens = []
-        segments = result.segments or []
+        segments = self._attach_punctuation(result.segments or [], result.text or "")
         for seg in segments:
             text = seg.get("text", "").strip()
             start = seg.get("start", 0)
