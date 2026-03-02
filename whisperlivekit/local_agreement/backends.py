@@ -276,6 +276,18 @@ class Qwen3ASR(ASRBase):
         )
         return result
 
+    @staticmethod
+    def _is_cjk(char):
+        """Check if a character is CJK (Chinese/Japanese/Korean)."""
+        cp = ord(char)
+        return (
+            (0x4E00 <= cp <= 0x9FFF) or (0x3400 <= cp <= 0x4DBF) or
+            (0x20000 <= cp <= 0x2A6DF) or (0xF900 <= cp <= 0xFAFF) or
+            (0x2F800 <= cp <= 0x2FA1F) or (0x3000 <= cp <= 0x303F) or
+            (0x3040 <= cp <= 0x309F) or (0x30A0 <= cp <= 0x30FF) or
+            (0xAC00 <= cp <= 0xD7AF) or (0xFF00 <= cp <= 0xFFEF)
+        )
+
     def ts_words(self, result) -> List[ASRToken]:
         tokens = []
         segments = result.segments or []
@@ -284,6 +296,10 @@ class Qwen3ASR(ASRBase):
             start = seg.get("start", 0)
             end = seg.get("end", 0)
             if text and end > start:
+                # Prepend space for non-CJK words to match Whisper convention
+                # where Segment.from_tokens uses ''.join()
+                if not self._is_cjk(text[0]):
+                    text = " " + text
                 tokens.append(ASRToken(start, end, text))
         return tokens
 
