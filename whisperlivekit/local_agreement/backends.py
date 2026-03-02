@@ -221,6 +221,80 @@ class MLXWhisper(ASRBase):
         self.transcribe_kargs["vad_filter"] = True
 
 
+class Qwen3ASR(ASRBase):
+    """
+    Uses Qwen3-ASR via mlx-qwen3-asr for fast Apple Silicon transcription.
+    Supports Cantonese, Mandarin, English, and 30+ languages natively.
+    """
+    sep = ""
+
+    def load_model(self, model_size=None, cache_dir=None, model_dir=None):
+        from mlx_qwen3_asr import Session
+
+        if model_dir is not None:
+            model_name = str(model_dir)
+        elif model_size is not None:
+            model_name = self._translate_model_size(model_size)
+        else:
+            model_name = "Qwen/Qwen3-ASR-0.6B"
+
+        logger.info(f"Loading Qwen3-ASR model: {model_name}")
+        self._session = Session(model=model_name)
+        self._model_name = model_name
+        return self._session
+
+    def _translate_model_size(self, model_size):
+        mapping = {
+            "qwen3-0.6b": "Qwen/Qwen3-ASR-0.6B",
+            "qwen3-1.7b": "Qwen/Qwen3-ASR-1.7B",
+            "0.6b": "Qwen/Qwen3-ASR-0.6B",
+            "1.7b": "Qwen/Qwen3-ASR-1.7B",
+            "small": "Qwen/Qwen3-ASR-0.6B",
+            "large": "Qwen/Qwen3-ASR-1.7B",
+        }
+        return mapping.get(model_size.lower(), model_size)
+
+    def _map_language(self, lang_code):
+        """Map short language codes to Qwen3-ASR language names."""
+        lang_map = {
+            "zh": "Chinese", "yue": "Cantonese", "en": "English",
+            "ja": "Japanese", "ko": "Korean", "fr": "French",
+            "de": "German", "es": "Spanish", "pt": "Portuguese",
+            "ru": "Russian", "ar": "Arabic", "it": "Italian",
+            "nl": "Dutch", "pl": "Polish", "tr": "Turkish",
+            "vi": "Vietnamese", "th": "Thai", "id": "Indonesian",
+            "ms": "Malay", "tl": "Tagalog", "hi": "Hindi",
+        }
+        return lang_map.get(lang_code, lang_code)
+
+    def transcribe(self, audio, init_prompt=""):
+        language = self._map_language(self.original_language) if self.original_language else None
+        result = self._session.transcribe(
+            audio,
+            language=language,
+            return_timestamps=True,
+        )
+        return result
+
+    def ts_words(self, result) -> List[ASRToken]:
+        tokens = []
+        segments = result.segments or []
+        for seg in segments:
+            text = seg.get("text", "").strip()
+            start = seg.get("start", 0)
+            end = seg.get("end", 0)
+            if text and end > start:
+                tokens.append(ASRToken(start, end, text))
+        return tokens
+
+    def segments_end_ts(self, result) -> List[float]:
+        segments = result.segments or []
+        return [s["end"] for s in segments if "end" in s]
+
+    def use_vad(self):
+        logger.info("Qwen3-ASR has built-in speech detection; VAD option ignored.")
+
+
 class OpenaiApiASR(ASRBase):
     """Uses OpenAI's Whisper API for transcription."""
     def __init__(self, lan=None, temperature=0, logfile=sys.stderr):

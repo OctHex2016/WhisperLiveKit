@@ -8,7 +8,7 @@ from whisperlivekit.backend_support import (faster_backend_available,
 from whisperlivekit.model_paths import detect_model_format, resolve_model_path
 from whisperlivekit.warmup import warmup_asr
 
-from .backends import FasterWhisperASR, MLXWhisper, OpenaiApiASR, WhisperASR
+from .backends import FasterWhisperASR, MLXWhisper, OpenaiApiASR, Qwen3ASR, WhisperASR
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +101,19 @@ def backend_factory(
     if backend_choice == "openai-api":
         logger.debug("Using OpenAI API.")
         asr = OpenaiApiASR(lan=lan)
+    elif backend_choice == "qwen3-asr":
+        logger.debug("Using Qwen3-ASR backend.")
+        model_override = str(resolved_root) if resolved_root is not None else None
+        t = time.time()
+        logger.info(f"Loading Qwen3-ASR model for language {lan}...")
+        asr = Qwen3ASR(
+            model_size=model_size,
+            lan=lan,
+            cache_dir=model_cache_dir,
+            model_dir=model_override,
+        )
+        e = time.time()
+        logger.info(f"done. It took {round(e-t,2)} seconds.")
     else:
         backend_choice = _normalize_backend_choice(
             backend_choice,
